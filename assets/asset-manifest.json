@@ -1,0 +1,83 @@
+{
+  "project": "Kamran Editorial Portfolio",
+  "generated": "2026-09-11",
+  "updated": "2026-09-13",
+  "sourceConversation": "Website Style Discussion",
+  "notes": [
+    "All original files exposed by the referenced-conversation attachment bridge are included.",
+    "The source discussion mentions 11 reels and 8 uploaded thumbnail images; ten visually mapped reel files are packaged in this revision.",
+    "YouTube covers are official max-resolution preview images downloaded from the supplied video IDs.",
+    "Tight image-only circular avatar crops are derived from included profile screenshots.",
+    "The short-form client mapping follows the user's final correction: source 12 to Fahad Films, sources 17 and 18 to Mr Falex, with the visually reviewed creator clips grouped under Talha Reviews and Rehan Scales.",
+    "Client project notes are editorial summaries, not attributed testimonial quotes.",
+    "The neo-brutalist K mark is included at logo/k-neo.svg."
+  ],
+  "profile": {
+    "kamranHero": {
+      "path": "profile/kamran-hero.jpeg",
+      "type": "user-uploaded original"
+    },
+    "kamranCutout": {
+      "path": "profile/kamran-cutout.png",
+      "type": "transparent background extraction derived from kamranHero"
+    },
+    "instagramScreenshot": {
+      "path": "profile/kamran-instagram.jpg",
+      "type": "square crop derived from user-supplied IMG_2866.jpg",
+      "url": "https://instagram.com/realll_kamran"
+    },
+    "instagramFullScreenshot": {
+      "path": "profile/kamran-instagram-full.jpg",
+      "type": "uncropped user-supplied IMG_2866.jpg used in About",
+      "url": "https://instagram.com/realll_kamran"
+    }
+  },
+  "aboutSequence": {
+    "pathPattern": "about-sequence/frame-000.jpg through frame-077.jpg",
+    "frameCount": 78,
+    "dimensions": "736x414",
+    "type": "user-supplied image sequence used for scroll-scrubbed animation"
+  },
+  "clients": {
+    "talhaReviews": {
+      "handle": "@talha__reviews",
+      "profileScreenshot": "clients/talha-reviews/profile/profile-screenshot.jpg",
+      "avatarCrop": "clients/talha-reviews/profile/avatar-full.jpg",
+      "reels": ["clients/talha-reviews/reels/reel-01.mp4", "clients/talha-reviews/reels/reel-02.mp4", "clients/talha-reviews/reels/reel-03.mp4"],
+      "reelSourceNumbers": [13, 8, 11],
+      "youtube": [
+        {"id": "8_tLSmCtuG8", "cover": "clients/talha-reviews/youtube/8_tLSmCtuG8.jpg"},
+        {"id": "5HoJM_Jdrjg", "cover": "clients/talha-reviews/youtube/5HoJM_Jdrjg.jpg"},
+        {"id": "OuJGN5ZfxCQ", "cover": "clients/talha-reviews/youtube/OuJGN5ZfxCQ.jpg"},
+        {"id": "AhFdygt6jhg", "cover": "clients/talha-reviews/youtube/AhFdygt6jhg.jpg", "featured": true}
+      ]
+    },
+    "rehanScales": {
+      "handle": "@rehanscales",
+      "profileScreenshot": "clients/rehan-scales/profile/profile-screenshot.jpg",
+      "avatarCrop": "clients/rehan-scales/profile/avatar-full.jpg",
+      "reels": ["clients/rehan-scales/reels/reel-01.mp4", "clients/rehan-scales/reels/reel-02.mp4", "clients/rehan-scales/reels/reel-03.mp4"],
+      "reelSourceNumbers": [16, 14, 15],
+      "youtube": [
+        {"id": "1mzgjj4awEM", "cover": "clients/rehan-scales/youtube/1mzgjj4awEM.jpg"}
+      ]
+    },
+    "mrFalex": {
+      "handle": "@mrfalex_",
+      "profileScreenshot": "clients/mr-falex/profile/profile-screenshot.jpg",
+      "avatarCrop": "clients/mr-falex/profile/avatar-full.jpg",
+      "reels": ["clients/mr-falex/reels/reel-01.mp4", "clients/mr-falex/reels/reel-02.mp4"],
+      "reelSourceNumbers": [17, 18]
+    },
+    "fahadFilms": {
+      "handle": "@fahadfilms.official",
+      "profileScreenshot": "clients/fahad-films/profile/profile-screenshot.jpg",
+      "avatarCrop": "clients/fahad-films/profile/avatar-full.jpg",
+      "reels": [
+        "clients/fahad-films/reels/reel-01.mp4",
+        "clients/fahad-films/reels/reel-02.mp4"
+      ],
+      "reelSourceNumbers": [12, 19]
+    }
+  }
+}
