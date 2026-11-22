@@ -255,7 +255,7 @@ function initCoverflow(stage, opts) {
       target = Math.round(target);
       const idx = mod(target);
       const rect = stage.getBoundingClientRect();
-      if (rect.bottom > 0 && rect.top < innerHeight) startLive(idx);
+      if (opts.autoplay !== false && rect.bottom > 0 && rect.top < innerHeight) startLive(idx);
     }, 450);
   }
 
@@ -299,15 +299,21 @@ function initCoverflow(stage, opts) {
     requestAnimationFrame(tick);
   }
 
-  // Page scroll moves the carousel while its section is on screen.
-  let lastY = window.scrollY;
+  // Page scroll moves the carousel, but only once the carousel has reached
+  // the middle of the screen, so the first video is always the one you see
+  // when you arrive. Scrolling back up returns to it.
+  let manual = 0;
+  let scrollPart = 0;
+  const readScroll = () => {
+    const r = stage.getBoundingClientRect();
+    const offset = innerHeight / 2 - (r.top + r.height / 2);
+    return Math.max(0, Math.round(offset / STEP));
+  };
   window.addEventListener('scroll', () => {
-    const y = window.scrollY;
-    const dy = y - lastY;
-    lastY = y;
-    const r = section.getBoundingClientRect();
-    if (r.bottom < innerHeight * 0.25 || r.top > innerHeight * 0.75) return;
-    target += dy / STEP;
+    const next = readScroll();
+    if (next === scrollPart) return;
+    scrollPart = next;
+    target = manual + scrollPart;
     scheduleSettle();
   }, { passive: true });
 
@@ -328,6 +334,7 @@ function initCoverflow(stage, opts) {
     dragging = false;
     stage.classList.remove('is-dragging');
     target = Math.round(pos);
+    manual = target - scrollPart;
     scheduleSettle();
   };
   window.addEventListener('pointerup', endDrag);
@@ -342,10 +349,11 @@ function initCoverflow(stage, opts) {
     const d = wrap(i - pos);
     if (Math.abs(d) < 0.5) { clearTimeout(settleTimer); startLive(i, true); return; }
     target = Math.round(pos + d);
+    manual = target - scrollPart;
     scheduleSettle();
   });
 
-  const step = (dir) => { target = Math.round(target) + dir; scheduleSettle(); };
+  const step = (dir) => { target = Math.round(target) + dir; manual = target - scrollPart; scheduleSettle(); };
   stage.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
     if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
@@ -383,7 +391,7 @@ function reelPreview(cover, withSound) {
   return video;
 }
 
-initCoverflow($('#coverflow'), { cover: '.youtube-cover', preview: youtubePreview, caption: $('#cfCaption'), prev: $('#cfPrev'), next: $('#cfNext') });
+initCoverflow($('#coverflow'), { cover: '.youtube-cover', preview: youtubePreview, autoplay: false, caption: $('#cfCaption'), prev: $('#cfPrev'), next: $('#cfNext') });
 initCoverflow($('#reelflow'), { cover: '.reel-cover', preview: reelPreview, caption: $('#rfCaption'), prev: $('#rfPrev'), next: $('#rfNext'), spread: 0.82, step: 180 });
 
 const bookingDialog = $('#bookingDialog');
