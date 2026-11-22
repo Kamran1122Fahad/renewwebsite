@@ -212,31 +212,52 @@ function mountReel(button) {
 
 function initCoverflow(stage, opts) {
   if (!stage) return;
-  const originals = Array.from(stage.querySelectorAll('.cf-card'));
-  if (!originals.length) return;
-  // Every video appears once; no duplicated cards.
-  const cards = originals;
+  const cards = Array.from(stage.querySelectorAll('.cf-card'));
   const n = cards.length;
+  if (!n) return;
   const caption = opts.caption;
-  const SPEED = opts.speed || 0.16; // cards per second
+  const section = stage.closest('section') || stage;
+  const STEP = opts.step || 220; // px of page scroll per video
   let pos = 0;
-  let velocity = 0;
-  let glideTo = null;
-  let pendingPlay = null;
+  let target = 0;
   let dragging = false;
   let moved = 0;
   let startX = 0;
   let startPos = 0;
-  let lastX = 0;
-  let lastT = 0;
-  let hover = false;
-  let hasPlayer = false;
-  let visible = true;
-  let speedFactor = 1;
   let shownCaption = -1;
+  let live = { index: -1, el: null };
+  let settleTimer = 0;
   let last = performance.now();
   const wrap = (d) => d - n * Math.round(d / n);
+  const mod = (i) => ((i % n) + n) % n;
   const cardWidth = () => cards[0].offsetWidth || 600;
+
+  // The centre card plays a muted preview; it stops when it leaves the centre.
+  function stopLive() {
+    if (live.el) { live.el.remove(); cards[live.index]?.classList.remove('is-live'); }
+    live = { index: -1, el: null };
+  }
+  function startLive(index, withSound = false) {
+    if (live.index === index && !withSound) return;
+    stopLive();
+    const card = cards[index];
+    const cover = card.querySelector(opts.cover);
+    if (!cover) return;
+    const el = opts.preview(cover, withSound);
+    el.classList.add('cf-live');
+    card.append(el);
+    card.classList.add('is-live');
+    live = { index, el };
+  }
+  function scheduleSettle() {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      target = Math.round(target);
+      const idx = mod(target);
+      const rect = stage.getBoundingClientRect();
+      if (rect.bottom > 0 && rect.top < innerHeight) startLive(idx);
+    }, 450);
+  }
 
   function render() {
     const w = cardWidth();
@@ -254,10 +275,10 @@ function initCoverflow(stage, opts) {
       card.classList.toggle('is-center', a < 0.5);
       if (a < nearestA) { nearestA = a; nearest = i; }
     });
-    const idx = nearest % originals.length;
-    if (caption && idx !== shownCaption) {
-      shownCaption = idx;
-      const card = originals[idx];
+    if (live.index !== -1 && live.index !== nearest) stopLive();
+    if (caption && nearest !== shownCaption) {
+      shownCaption = nearest;
+      const card = cards[nearest];
       caption.innerHTML = '';
       const who = document.createElement('span');
       who.textContent = card.dataset.client;
@@ -271,80 +292,99 @@ function initCoverflow(stage, opts) {
     const dt = Math.min(now - last, 64) / 1000;
     last = now;
     if (!dragging) {
-      if (glideTo !== null) {
-        const diff = glideTo - pos;
-        pos += diff * Math.min(1, dt * 7);
-        if (Math.abs(diff) < 0.002) {
-          pos = glideTo;
-          glideTo = null;
-          if (pendingPlay) { hasPlayer = true; opts.mount(pendingPlay); pendingPlay = null; }
-        }
-      } else {
-        const want = !reducedMotion && !hover && !hasPlayer && visible ? 1 : 0;
-        speedFactor += (want - speedFactor) * Math.min(1, dt * 3);
-        pos += velocity * dt + SPEED * speedFactor * dt;
-        velocity *= Math.pow(0.04, dt);
-        if (Math.abs(velocity) < 0.01) velocity = 0;
-      }
+      const diff = target - pos;
+      pos += Math.abs(diff) < 0.001 ? diff : diff * Math.min(1, dt * 8);
     }
     render();
     requestAnimationFrame(tick);
   }
 
+  // Page scroll moves the carousel while its section is on screen.
+  let lastY = window.scrollY;
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    const dy = y - lastY;
+    lastY = y;
+    const r = section.getBoundingClientRect();
+    if (r.bottom < innerHeight * 0.25 || r.top > innerHeight * 0.75) return;
+    target += dy / STEP;
+    scheduleSettle();
+  }, { passive: true });
+
   stage.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    if (event.target.closest('iframe, video, a')) return;
-    dragging = true; moved = 0; velocity = 0; glideTo = null;
-    startX = lastX = event.clientX; startPos = pos; lastT = performance.now();
+    if (event.target.closest('iframe, video.cf-live[controls], a')) return;
+    dragging = true; moved = 0; startX = event.clientX; startPos = pos;
     stage.classList.add('is-dragging');
   });
   window.addEventListener('pointermove', (event) => {
     if (!dragging) return;
-    const now = performance.now();
-    const unit = cardWidth() * 0.62;
     moved = Math.max(moved, Math.abs(event.clientX - startX));
-    pos = startPos - (event.clientX - startX) / unit;
-    if (now > lastT) velocity = -((event.clientX - lastX) / unit) / ((now - lastT) / 1000);
-    lastX = event.clientX; lastT = now;
+    pos = startPos - (event.clientX - startX) / (cardWidth() * 0.62);
+    target = pos;
   });
   const endDrag = () => {
     if (!dragging) return;
     dragging = false;
     stage.classList.remove('is-dragging');
-    if (performance.now() - lastT > 80) velocity = 0;
-    velocity = Math.max(-6, Math.min(6, velocity));
+    target = Math.round(pos);
+    scheduleSettle();
   };
   window.addEventListener('pointerup', endDrag);
   window.addEventListener('pointercancel', endDrag);
 
   stage.addEventListener('click', (event) => {
-    const button = event.target.closest(opts.cover);
     if (moved > 6) { event.preventDefault(); moved = 0; return; }
+    const button = event.target.closest(opts.cover);
     if (!button) return;
     const card = button.closest('.cf-card');
-    const d = wrap(cards.indexOf(card) - pos);
-    velocity = 0;
-    if (Math.abs(d) < 0.06) { hasPlayer = true; opts.mount(button); return; }
-    glideTo = pos + d;
-    pendingPlay = button;
+    const i = cards.indexOf(card);
+    const d = wrap(i - pos);
+    if (Math.abs(d) < 0.5) { clearTimeout(settleTimer); startLive(i, true); return; }
+    target = Math.round(pos + d);
+    scheduleSettle();
   });
 
-  const step = (dir) => { velocity = 0; pendingPlay = null; glideTo = Math.round(pos) + dir; };
+  const step = (dir) => { target = Math.round(target) + dir; scheduleSettle(); };
   stage.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
     if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
   });
   opts.prev?.addEventListener('click', () => step(-1));
   opts.next?.addEventListener('click', () => step(1));
-  stage.addEventListener('mouseenter', () => { hover = true; });
-  stage.addEventListener('mouseleave', () => { hover = false; });
-  new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: 0.1 }).observe(stage);
+  new IntersectionObserver(([entry]) => {
+    if (entry.isIntersecting) scheduleSettle(); else stopLive();
+  }, { threshold: 0.35 }).observe(stage);
   window.addEventListener('resize', render, { passive: true });
   render();
   requestAnimationFrame(tick);
 }
-initCoverflow($('#coverflow'), { cover: '.youtube-cover', mount: mountYouTube, caption: $('#cfCaption'), prev: $('#cfPrev'), next: $('#cfNext') });
-initCoverflow($('#reelflow'), { cover: '.reel-cover', mount: mountReel, caption: $('#rfCaption'), prev: $('#rfPrev'), next: $('#rfNext'), spread: 0.82, speed: 0.2 });
+
+function youtubePreview(cover, withSound) {
+  const iframe = document.createElement('iframe');
+  const origin = /^https?:$/.test(location.protocol) ? `&origin=${encodeURIComponent(location.origin)}` : '';
+  iframe.src = `https://www.youtube.com/embed/${cover.dataset.video}?autoplay=1&mute=${withSound ? 0 : 1}&rel=0&playsinline=1&modestbranding=1${origin}`;
+  iframe.title = cover.getAttribute('aria-label');
+  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+  iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+  iframe.allowFullscreen = true;
+  return iframe;
+}
+function reelPreview(cover, withSound) {
+  const video = document.createElement('video');
+  video.src = cover.dataset.src;
+  video.poster = cover.dataset.poster;
+  video.muted = !withSound;
+  video.loop = true;
+  video.playsInline = true;
+  video.autoplay = true;
+  if (withSound) video.controls = true;
+  video.play().catch(() => {});
+  return video;
+}
+
+initCoverflow($('#coverflow'), { cover: '.youtube-cover', preview: youtubePreview, caption: $('#cfCaption'), prev: $('#cfPrev'), next: $('#cfNext') });
+initCoverflow($('#reelflow'), { cover: '.reel-cover', preview: reelPreview, caption: $('#rfCaption'), prev: $('#rfPrev'), next: $('#rfNext'), spread: 0.82, step: 180 });
 
 const bookingDialog = $('#bookingDialog');
 $$('.open-booking').forEach((button) => button.addEventListener('click', () => {
