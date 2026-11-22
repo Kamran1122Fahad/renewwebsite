@@ -547,3 +547,34 @@ if (window.self === window.top) {
     });
   }, { passive: true });
 })();
+
+// Liquid glass header: specular highlight follows the cursor, and the text
+// switches to cream while the header floats over a navy section.
+(function initGlassHeader() {
+  const header = $('.site-header');
+  if (!header) return;
+  header.addEventListener('pointermove', (event) => {
+    const r = header.getBoundingClientRect();
+    header.style.setProperty('--hx', `${(event.clientX - r.left).toFixed(0)}px`);
+    header.style.setProperty('--hy', `${(event.clientY - r.top).toFixed(0)}px`);
+  });
+  header.addEventListener('pointerleave', () => { header.style.removeProperty('--hx'); header.style.removeProperty('--hy'); });
+  const sections = $$('main > section, main > .ribbon');
+  const isDark = (el) => {
+    const m = getComputedStyle(el).backgroundColor.match(/\d+(\.\d+)?/g);
+    if (!m) return false;
+    const [r, g, b, a = 1] = m.map(Number);
+    return a > 0.5 && (0.299 * r + 0.587 * g + 0.114 * b) < 110;
+  };
+  const darkMap = new Map(sections.map((s) => [s, isDark(s)]));
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const y = header.getBoundingClientRect().top + header.offsetHeight / 2;
+    const under = sections.find((s) => { const r = s.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
+    header.classList.toggle('on-dark', !!under && darkMap.get(under));
+  };
+  window.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  window.addEventListener('resize', update, { passive: true });
+  update();
+})();
