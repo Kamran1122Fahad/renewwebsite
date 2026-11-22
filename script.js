@@ -65,86 +65,6 @@ $$('.site-header nav a').forEach((link) => link.addEventListener('click', () => 
   menuToggle?.setAttribute('aria-label', 'Open navigation');
   if (menuToggle) menuToggle.textContent = 'Menu';
 }));
-const aboutSection = $('.about');
-const aboutCanvas = $('#aboutCanvas');
-const aboutContext = aboutCanvas?.getContext('2d');
-const aboutFrameCount = Number(aboutSection?.dataset.frameCount || 0);
-// Keep the scroll sequence out of the initial network waterfall. Frames are
-// requested in a small window around the current scroll position.
-const aboutFrames = Array.from({ length: aboutFrameCount }, () => null);
-let activeAboutFrame = 0;
-function loadAboutFrame(index) {
-  if (index < 0 || index >= aboutFrameCount) return null;
-  if (aboutFrames[index]) return aboutFrames[index];
-  const frame = new Image();
-  frame.decoding = 'async';
-  frame.src = `assets/about-sequence/frame-${String(index).padStart(3, '0')}.jpg`;
-  frame.addEventListener('load', () => {
-    if (index === activeAboutFrame) drawAboutFrame(index);
-  }, { once: true });
-  aboutFrames[index] = frame;
-  return frame;
-}
-function warmAboutWindow(index) {
-  for (let offset = -3; offset <= 3; offset += 1) loadAboutFrame(index + offset);
-}
-
-function drawAboutFrame(index = activeAboutFrame) {
-  const frame = aboutFrames[index];
-  if (!aboutContext || !frame?.complete || !frame.naturalWidth) return;
-  const canvasWidth = aboutCanvas.width;
-  const canvasHeight = aboutCanvas.height;
-  const scale = Math.max(canvasWidth / frame.naturalWidth, canvasHeight / frame.naturalHeight);
-  const width = frame.naturalWidth * scale;
-  const height = frame.naturalHeight * scale;
-  aboutContext.clearRect(0, 0, canvasWidth, canvasHeight);
-  aboutContext.drawImage(frame, (canvasWidth - width) / 2, (canvasHeight - height) / 2, width, height);
-}
-
-function resizeAboutCanvas() {
-  if (!aboutCanvas) return;
-  const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  aboutCanvas.width = Math.round(window.innerWidth * ratio);
-  aboutCanvas.height = Math.round(window.innerHeight * ratio);
-  drawAboutFrame();
-}
-
-function updateAboutSequence() {
-  if (!aboutSection || !aboutFrameCount) return;
-  const rect = aboutSection.getBoundingClientRect();
-  const scrollable = Math.max(aboutSection.offsetHeight - window.innerHeight, 1);
-  const progress = reducedMotion ? 0 : Math.max(0, Math.min(1, -rect.top / scrollable));
-  const nextFrame = Math.round(progress * (aboutFrameCount - 1));
-  if (nextFrame !== activeAboutFrame) activeAboutFrame = nextFrame;
-  warmAboutWindow(activeAboutFrame);
-  if (aboutFrames[activeAboutFrame]?.complete) drawAboutFrame(activeAboutFrame);
-  updateAboutReview(progress);
-}
-
-const aboutReviewOrder = ['talha', 'rehan', 'falex', 'fahad'];
-let activeAboutReview = -1;
-function updateAboutReview(scrollProgress) {
-  const next = Math.min(aboutReviewOrder.length - 1, Math.floor(scrollProgress * aboutReviewOrder.length));
-  const meter = $('#aboutReviewProgress');
-  if (meter) meter.style.transform = `scaleX(${Math.max(.01, scrollProgress) * 4})`;
-  if (next === activeAboutReview) return;
-  activeAboutReview = next;
-  const client = clients[aboutReviewOrder[next]];
-  const panel = $('#aboutReview');
-  if (!client || !panel) return;
-  panel.classList.add('is-changing');
-  window.setTimeout(() => {
-    $('#aboutReviewAvatar').src = client.avatar;
-    $('#aboutReviewName').textContent = client.name;
-    $('#aboutReviewHandle').textContent = client.handle;
-    $('#aboutReviewQuote').textContent = client.quote;
-    panel.classList.remove('is-changing');
-  }, reducedMotion ? 0 : 160);
-}
-
-loadAboutFrame(0)?.addEventListener('load', () => { resizeAboutCanvas(); drawAboutFrame(0); }, { once: true });
-window.addEventListener('resize', resizeAboutCanvas, { passive: true });
-
 function updateScrollEffects() {
   siteHeader?.classList.toggle('is-compact', window.scrollY > 90);
 
@@ -168,7 +88,6 @@ function updateScrollEffects() {
     node.style.translate = `0 ${y}px`;
   });
 
-  updateAboutSequence();
 }
 
 let ticking = false;
@@ -178,7 +97,6 @@ window.addEventListener("scroll", () => {
     ticking = true;
   }
 }, { passive: true });
-resizeAboutCanvas();
 updateScrollEffects();
 
 const mediaObserver = new IntersectionObserver((entries) => {
@@ -229,79 +147,9 @@ const rowObserver = new IntersectionObserver((entries) => {
 }, { threshold: .45 });
 $$('.compare-row').forEach((row) => rowObserver.observe(row));
 
-const toast = $('#reviewToast');
-let activeClient = 'talha';
-let toastTimer;
-
-function selectClient(id) {
-  const client = clients[id];
-  if (!client) return;
-  activeClient = id;
-  $$('.client-avatar').forEach((el) => el.classList.toggle('is-active', el.dataset.client === id));
-  $('#reviewAvatar').src = client.avatar;
-  $('#reviewName').textContent = client.name;
-  $('#reviewHandle').textContent = client.handle;
-  $('#reviewQuote').textContent = client.quote;
-  $('#reviewRole').textContent = client.role;
-  $('#reviewStat').textContent = client.stat;
-  toast.textContent = `${client.name} selected`;
-  toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
-}
-
-$$('.client-avatar').forEach((button) => button.addEventListener('click', (event) => {
-  selectClient(button.dataset.client);
-}));
-
-const metricNodes = $$('.animated-count');
-let metricFrame = 0;
-function animateMetrics() {
-  cancelAnimationFrame(metricFrame);
-  if (reducedMotion) {
-    metricNodes.forEach((node) => { node.textContent = `${node.dataset.target}${node.dataset.suffix}`; });
-    return;
-  }
-  const started = performance.now();
-  const duration = 1500;
-  function tick(now) {
-    const progress = Math.min(1, (now - started) / duration);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    metricNodes.forEach((node) => {
-      const target = Number(node.dataset.target);
-      node.textContent = `${Math.round(target * eased)}${node.dataset.suffix}`;
-    });
-    if (progress < 1) metricFrame = requestAnimationFrame(tick);
-  }
-  metricFrame = requestAnimationFrame(tick);
-}
-const metricSection = $('.community-metrics');
-if (metricSection && 'IntersectionObserver' in window) {
-  const metricObserver = new IntersectionObserver((entries) => {
-    if (entries.some((entry) => entry.isIntersecting)) animateMetrics();
-  }, { threshold: .35 });
-  metricObserver.observe(metricSection);
-}
-
-const clientNotesRail = $('#clientNotes');
-if (clientNotesRail) {
-  requestAnimationFrame(() => {
-    const card = clientNotesRail.querySelector('article');
-    clientNotesRail.scrollLeft = (card?.getBoundingClientRect().width || 0) + 18;
-  });
-}
-function moveClientNotes(direction) {
-  if (!clientNotesRail) return;
-  const card = clientNotesRail.querySelector('article');
-  const amount = (card?.getBoundingClientRect().width || 340) + 18;
-  clientNotesRail.scrollBy({ left: amount * direction, behavior: reducedMotion ? 'instant' : 'smooth' });
-}
-$('#notesPrev')?.addEventListener('click', () => moveClientNotes(-1));
-$('#notesNext')?.addEventListener('click', () => moveClientNotes(1));
-
 const dialog = $('#clientDialog');
-$('#openClient').addEventListener('click', () => {
-  const client = clients[activeClient];
+$('#openClient')?.addEventListener('click', () => {
+  const client = clients.talha;
   $('#dialogAvatar').src = client.avatar;
   $('#dialogName').textContent = client.name;
   $('#dialogHandle').textContent = client.handle;
@@ -319,30 +167,184 @@ dialog.addEventListener('click', (event) => {
 });
 $('#dialogWork').addEventListener('click', () => dialog.close());
 
-$$('.youtube-cover').forEach((button) => {
-  button.addEventListener('click', () => {
-    const id = button.dataset.video;
-    const iframe = document.createElement('iframe');
-    iframe.className = 'youtube-player';
-    const origin = location.protocol === 'https:' || location.protocol === 'http:'
-      ? `&origin=${encodeURIComponent(location.origin)}` : '';
-    iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&rel=0${origin}`;
-    iframe.title = button.getAttribute('aria-label');
-    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-    iframe.allowFullscreen = true;
-    const shell = document.createElement('div');
-    shell.className = 'youtube-player-shell';
-    const watchLink = document.createElement('a');
-    watchLink.className = 'youtube-watch-link';
-    watchLink.href = `https://www.youtube.com/watch?v=${id}`;
-    watchLink.target = '_blank';
-    watchLink.rel = 'noopener';
-    watchLink.textContent = 'Having trouble playing? Watch on YouTube ↗';
-    shell.append(iframe, watchLink);
-    button.replaceWith(shell);
-  }, { once: true });
-});
+
+
+
+// Swap a YouTube cover button for an inline player.
+function mountYouTube(button) {
+  const id = button.dataset.video;
+  const iframe = document.createElement('iframe');
+  iframe.className = 'youtube-player';
+  const origin = location.protocol === 'https:' || location.protocol === 'http:'
+    ? `&origin=${encodeURIComponent(location.origin)}` : '';
+  iframe.src = `https://www.youtube.com/embed/${id}?autoplay=1&rel=0${origin}`;
+  iframe.title = button.getAttribute('aria-label');
+  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+  iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+  iframe.allowFullscreen = true;
+  const shell = document.createElement('div');
+  shell.className = 'youtube-player-shell';
+  const watchLink = document.createElement('a');
+  watchLink.className = 'youtube-watch-link';
+  watchLink.href = `https://www.youtube.com/watch?v=${id}`;
+  watchLink.target = '_blank';
+  watchLink.rel = 'noopener';
+  watchLink.textContent = 'Having trouble playing? Watch on YouTube ↗';
+  shell.append(iframe, watchLink);
+  button.replaceWith(shell);
+}
+
+// Long-form showcase: an endless, always-moving coverflow. The card in the
+// middle is the largest; cards shrink step by step toward both edges, where
+// the row fades out. Drag or swipe to scrub, click a card to bring it to the
+// centre and play it.
+function mountReel(button) {
+  const video = document.createElement('video');
+  video.className = 'reel-player';
+  video.controls = true;
+  video.playsInline = true;
+  video.autoplay = true;
+  video.poster = button.dataset.poster;
+  video.src = button.dataset.src;
+  button.replaceWith(video);
+  video.play().catch(() => {});
+}
+
+function initCoverflow(stage, opts) {
+  if (!stage) return;
+  const originals = Array.from(stage.querySelectorAll('.cf-card'));
+  if (!originals.length) return;
+  // Every video appears once; no duplicated cards.
+  const cards = originals;
+  const n = cards.length;
+  const caption = opts.caption;
+  const SPEED = opts.speed || 0.16; // cards per second
+  let pos = 0;
+  let velocity = 0;
+  let glideTo = null;
+  let pendingPlay = null;
+  let dragging = false;
+  let moved = 0;
+  let startX = 0;
+  let startPos = 0;
+  let lastX = 0;
+  let lastT = 0;
+  let hover = false;
+  let hasPlayer = false;
+  let visible = true;
+  let speedFactor = 1;
+  let shownCaption = -1;
+  let last = performance.now();
+  const wrap = (d) => d - n * Math.round(d / n);
+  const cardWidth = () => cards[0].offsetWidth || 600;
+
+  function render() {
+    const w = cardWidth();
+    let nearest = 0;
+    let nearestA = Infinity;
+    cards.forEach((card, i) => {
+      const d = wrap(i - pos);
+      const a = Math.abs(d);
+      const dir = Math.sign(d) || 1;
+      const scale = 1 / (1 + 0.28 * a);
+      const x = dir * w * (opts.spread || 0.66) * a / (1 + 0.22 * a);
+      card.style.transform = `translate3d(calc(-50% + ${x.toFixed(1)}px), -50%, 0) scale(${scale.toFixed(3)})`;
+      card.style.zIndex = String(200 - Math.round(a * 20));
+      card.style.visibility = a > n / 2 - 0.6 ? 'hidden' : 'visible';
+      card.classList.toggle('is-center', a < 0.5);
+      if (a < nearestA) { nearestA = a; nearest = i; }
+    });
+    const idx = nearest % originals.length;
+    if (caption && idx !== shownCaption) {
+      shownCaption = idx;
+      const card = originals[idx];
+      caption.innerHTML = '';
+      const who = document.createElement('span');
+      who.textContent = card.dataset.client;
+      const title = document.createElement('strong');
+      title.textContent = card.dataset.title;
+      caption.append(who, title);
+    }
+  }
+
+  function tick(now) {
+    const dt = Math.min(now - last, 64) / 1000;
+    last = now;
+    if (!dragging) {
+      if (glideTo !== null) {
+        const diff = glideTo - pos;
+        pos += diff * Math.min(1, dt * 7);
+        if (Math.abs(diff) < 0.002) {
+          pos = glideTo;
+          glideTo = null;
+          if (pendingPlay) { hasPlayer = true; opts.mount(pendingPlay); pendingPlay = null; }
+        }
+      } else {
+        const want = !reducedMotion && !hover && !hasPlayer && visible ? 1 : 0;
+        speedFactor += (want - speedFactor) * Math.min(1, dt * 3);
+        pos += velocity * dt + SPEED * speedFactor * dt;
+        velocity *= Math.pow(0.04, dt);
+        if (Math.abs(velocity) < 0.01) velocity = 0;
+      }
+    }
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  stage.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (event.target.closest('iframe, video, a')) return;
+    dragging = true; moved = 0; velocity = 0; glideTo = null;
+    startX = lastX = event.clientX; startPos = pos; lastT = performance.now();
+    stage.classList.add('is-dragging');
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const now = performance.now();
+    const unit = cardWidth() * 0.62;
+    moved = Math.max(moved, Math.abs(event.clientX - startX));
+    pos = startPos - (event.clientX - startX) / unit;
+    if (now > lastT) velocity = -((event.clientX - lastX) / unit) / ((now - lastT) / 1000);
+    lastX = event.clientX; lastT = now;
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    stage.classList.remove('is-dragging');
+    if (performance.now() - lastT > 80) velocity = 0;
+    velocity = Math.max(-6, Math.min(6, velocity));
+  };
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
+
+  stage.addEventListener('click', (event) => {
+    const button = event.target.closest(opts.cover);
+    if (moved > 6) { event.preventDefault(); moved = 0; return; }
+    if (!button) return;
+    const card = button.closest('.cf-card');
+    const d = wrap(cards.indexOf(card) - pos);
+    velocity = 0;
+    if (Math.abs(d) < 0.06) { hasPlayer = true; opts.mount(button); return; }
+    glideTo = pos + d;
+    pendingPlay = button;
+  });
+
+  const step = (dir) => { velocity = 0; pendingPlay = null; glideTo = Math.round(pos) + dir; };
+  stage.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
+  });
+  opts.prev?.addEventListener('click', () => step(-1));
+  opts.next?.addEventListener('click', () => step(1));
+  stage.addEventListener('mouseenter', () => { hover = true; });
+  stage.addEventListener('mouseleave', () => { hover = false; });
+  new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }, { threshold: 0.1 }).observe(stage);
+  window.addEventListener('resize', render, { passive: true });
+  render();
+  requestAnimationFrame(tick);
+}
+initCoverflow($('#coverflow'), { cover: '.youtube-cover', mount: mountYouTube, caption: $('#cfCaption'), prev: $('#cfPrev'), next: $('#cfNext') });
+initCoverflow($('#reelflow'), { cover: '.reel-cover', mount: mountReel, caption: $('#rfCaption'), prev: $('#rfPrev'), next: $('#rfNext'), spread: 0.82, speed: 0.2 });
 
 const bookingDialog = $('#bookingDialog');
 $$('.open-booking').forEach((button) => button.addEventListener('click', () => {
@@ -367,29 +369,6 @@ $('#bookingForm')?.addEventListener('submit', (event) => {
   window.location.href = `mailto:kamrannouman6@gmail.com?subject=${subject}&body=${body}`;
 });
 
-const rail = $('#reelRail');
-const progress = $('#railProgress');
-function updateRailProgress() {
-  const max = rail.scrollWidth - rail.clientWidth;
-  const amount = max > 0 ? (rail.scrollLeft / max) * 80 + 20 : 100;
-  progress.style.width = `${amount}%`;
-}
-$('#railPrev').addEventListener('click', () => rail.scrollBy({ left: -rail.clientWidth * .72, behavior: 'smooth' }));
-$('#railNext').addEventListener('click', () => rail.scrollBy({ left: rail.clientWidth * .72, behavior: 'smooth' }));
-rail.addEventListener('scroll', updateRailProgress, { passive: true });
-updateRailProgress();
-
-let dragging = false;
-let startX = 0;
-let startScroll = 0;
-rail.addEventListener('pointerdown', (event) => {
-  if (event.target.closest('video')) return;
-  dragging = true; startX = event.clientX; startScroll = rail.scrollLeft; rail.setPointerCapture(event.pointerId);
-});
-rail.addEventListener('pointermove', (event) => { if (dragging) rail.scrollLeft = startScroll - (event.clientX - startX); });
-rail.addEventListener('pointerup', () => { dragging = false; });
-rail.addEventListener('pointercancel', () => { dragging = false; });
-
 document.addEventListener('play', (event) => {
   if (event.target.tagName !== 'VIDEO') return;
   $$('video').forEach((video) => { if (video !== event.target) video.pause(); });
@@ -400,3 +379,171 @@ window.addEventListener('pointermove', (event) => {
   glow.style.left = `${event.clientX}px`;
   glow.style.top = `${event.clientY}px`;
 });
+
+// Count-up numbers ([data-count]) that run when they scroll into view.
+(function initCountUps() {
+  const nodes = $$('[data-count]');
+  if (!nodes.length) return;
+  const show = (node, value) => {
+    const decimals = Number(node.dataset.decimals || 0);
+    node.textContent = `${value.toFixed(decimals)}${node.dataset.suffix || ''}`;
+  };
+  const run = (node) => {
+    const target = Number(node.dataset.count);
+    if (reducedMotion) { show(node, target); return; }
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / 1600);
+      show(node, target * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+  if (!('IntersectionObserver' in window)) { nodes.forEach((n) => show(n, Number(n.dataset.count))); return; }
+  const io = new IntersectionObserver((entries) => entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    io.unobserve(entry.target);
+    run(entry.target);
+  }), { threshold: 0.6 });
+  nodes.forEach((n) => { show(n, 0); io.observe(n); });
+})();
+
+// Hero ring: cards orbit the portrait. Front cards sit over the portrait,
+// back cards behind it. Turns slowly on its own; drag or swipe to spin it.
+(function initHeroRing() {
+  const ring = $('#heroRing');
+  if (!ring) return;
+  const cards = $$('.ring-card', ring);
+  const n = cards.length;
+  let angle = 0;
+  let velocity = 0;
+  let dragging = false;
+  let lastX = 0;
+  let lastT = 0;
+  let hover = false;
+  let visible = true;
+  let last = performance.now();
+  const AUTO = 0.12; // radians per second
+
+  function layout() {
+    const w = ring.clientWidth;
+    const live = cards.filter((card) => getComputedStyle(card).display !== 'none');
+    const count = live.length || 1;
+    const radius = w < 600 ? w * 0.34 : Math.min(w * 0.3, 380);
+    live.forEach((card, i) => {
+      const a = angle + (i / count) * Math.PI * 2;
+      const z = Math.cos(a);
+      const x = Math.sin(a) * radius;
+      const y = -z * 26;
+      const scale = 0.72 + 0.28 * ((z + 1) / 2);
+      card.style.transform = `translate(-50%, -50%) translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) rotateY(${(Math.sin(a) * 28).toFixed(1)}deg) scale(${scale.toFixed(3)})`;
+      card.style.zIndex = z > -0.05 ? String(30 + Math.round(z * 10)) : String(5 + Math.round((z + 1) * 4));
+      card.style.opacity = (z < -0.05 ? 0.18 + 0.4 * ((z + 1) / 2) : 0.55 + 0.45 * z).toFixed(2);
+      card.style.filter = z < -0.05 ? 'blur(2px)' : 'none';
+      card.classList.toggle('is-back', z < -0.05);
+    });
+  }
+  function tick(now) {
+    const dt = Math.min(now - last, 64) / 1000;
+    last = now;
+    if (!dragging) {
+      angle += velocity * dt;
+      velocity *= Math.pow(0.05, dt);
+      if (Math.abs(velocity) < 0.01) velocity = 0;
+      if (!reducedMotion && !hover && visible) angle += AUTO * dt;
+    }
+    layout();
+    requestAnimationFrame(tick);
+  }
+  const unit = () => Math.max(ring.clientWidth * 0.5, 200);
+  ring.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    dragging = true; velocity = 0; lastX = event.clientX; lastT = performance.now();
+    ring.classList.add('is-dragging');
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const now = performance.now();
+    const d = (event.clientX - lastX) / unit();
+    angle += d;
+    if (now > lastT) velocity = d / ((now - lastT) / 1000);
+    lastX = event.clientX; lastT = now;
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    ring.classList.remove('is-dragging');
+    if (performance.now() - lastT > 80) velocity = 0;
+    velocity = Math.max(-4, Math.min(4, velocity));
+  };
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+  ring.addEventListener('mouseenter', () => { hover = true; });
+  ring.addEventListener('mouseleave', () => { hover = false; });
+  ring.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight') { event.preventDefault(); velocity = 2.2; }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); velocity = -2.2; }
+  });
+  new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; }).observe(ring);
+  window.addEventListener('resize', layout, { passive: true });
+  layout();
+  requestAnimationFrame(tick);
+})();
+
+// Mark the nav link for the section currently in view.
+(function initNavIndicator() {
+  const links = $$('.site-header nav a[href^="#"]');
+  const targets = links.map((link) => [link, $(link.getAttribute('href'))]).filter(([, el]) => el);
+  if (!targets.length || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((entries) => entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    targets.forEach(([link, el]) => link.classList.toggle('is-current', el === entry.target));
+  }), { rootMargin: '-45% 0px -50% 0px' });
+  targets.forEach(([, el]) => io.observe(el));
+})();
+
+// Talha Reviews AI reels: covers link to Instagram. On the live site the
+// click loads Instagram's player in place; inside a sandboxed preview frame
+// (where embeds are blocked) the link simply opens Instagram.
+if (window.self === window.top) {
+  $$('.ai-cover').forEach((link) => link.addEventListener('click', (event) => {
+    event.preventDefault();
+    const frame = document.createElement('iframe');
+    frame.src = `https://www.instagram.com/reel/${link.dataset.reel}/embed/`;
+    frame.title = link.getAttribute('aria-label');
+    frame.setAttribute('scrolling', 'no');
+    frame.allow = 'autoplay; encrypted-media; picture-in-picture';
+    link.replaceWith(frame);
+  }, { once: true }));
+}
+
+// Orange glow that follows the cursor inside each section, plus a light
+// parallax on the orbit stage.
+(function initCursorGlow() {
+  if (window.matchMedia('(hover: none)').matches) return;
+  const sections = $$('main > section');
+  let frame = 0;
+  let lastEvent = null;
+  window.addEventListener('pointermove', (event) => {
+    lastEvent = event;
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      const e = lastEvent;
+      sections.forEach((section) => {
+        const r = section.getBoundingClientRect();
+        if (e.clientY < r.top - 300 || e.clientY > r.bottom + 300) return;
+        section.style.setProperty('--mx', `${(e.clientX - r.left).toFixed(0)}px`);
+        section.style.setProperty('--my', `${(e.clientY - r.top).toFixed(0)}px`);
+      });
+      const stage = $('#orbitStage');
+      if (stage && window.innerWidth > 760) {
+        const r = stage.parentElement.getBoundingClientRect();
+        const dx = ((e.clientX - r.left) / r.width - 0.5) * -24;
+        const dy = ((e.clientY - r.top) / r.height - 0.5) * -24;
+        stage.style.setProperty('--px', `${dx.toFixed(1)}px`);
+        stage.style.setProperty('--py', `${dy.toFixed(1)}px`);
+      }
+    });
+  }, { passive: true });
+})();
